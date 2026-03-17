@@ -1,0 +1,1 @@
+"""SkyWatch camera capture modules."""

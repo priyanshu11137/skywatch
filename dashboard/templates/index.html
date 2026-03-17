@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyWatch — Airport Bird Detection System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg-primary: #070b14;
+  --bg-secondary: #0d1421;
+  --bg-card: #111b2e;
+  --bg-card-hover: #162035;
+  --border: #1a2d4a;
+  --border-glow: #1e3f6e;
+  --text-primary: #e2e8f0;
+  --text-secondary: #7a8ba8;
+  --text-dim: #4a5568;
+  --accent: #00c8ff;
+  --accent-dim: rgba(0,200,255,0.15);
+  --success: #00e88a;
+  --warning: #ffa726;
+  --danger: #ff4757;
+  --danger-bg: rgba(255,71,87,0.1);
+  --grid-line: rgba(0,200,255,0.04);
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --radius: 10px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Top Navbar ── */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.navbar-brand .logo {
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bg-primary);
+}
+.navbar-brand h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.navbar-brand span {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.navbar-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+}
+.status-dot.green { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.status-dot.red { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.status-dot.yellow { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+
+.navbar-actions { display: flex; gap: 8px; }
+
+/* ── Buttons ── */
+.btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { background: var(--bg-card-hover); border-color: var(--border-glow); }
+.btn-accent {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btn-accent:hover { background: #00b0e0; }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger-bg); }
+.btn-active {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Main Layout ── */
+.main {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-rows: 1fr auto;
+  height: calc(100vh - 52px);
+  gap: 0;
+}
+
+/* ── Left Panel: Cameras ── */
+.panel-left {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 12px;
+}
+.panel-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.camera-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.camera-card:hover { border-color: var(--accent); }
+.camera-card .feed {
+  width: 100%;
+  height: 132px;
+  background: #0a0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  position: relative;
+}
+.camera-card .feed img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-card .feed .no-feed {
+  text-align: center;
+  line-height: 1.6;
+}
+.camera-card .cam-info {
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.camera-card .cam-name {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+.camera-card .cam-meta {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Center: 3D Viewport ── */
+.viewport {
+  position: relative;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+.viewport canvas { display: block; }
+.viewport-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+.viewport-badge {
+  padding: 4px 10px;
+  background: rgba(13,20,33,0.85);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  backdrop-filter: blur(8px);
+}
+.viewport-badge .val { color: var(--accent); font-weight: 500; }
+
+/* ── Right Panel: Detections & Alerts ── */
+.panel-right {
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.alerts-section, .detections-section {
+  padding: 12px;
+  overflow-y: auto;
+}
+.alerts-section { flex: 0 0 auto; max-height: 35%; border-bottom: 1px solid var(--border); }
+.detections-section { flex: 1; }
+
+.alert-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.alert-item.high {
+  background: rgba(255,71,87,0.1);
+  border-left: 3px solid var(--danger);
+}
+.alert-item.medium {
+  background: rgba(255,167,38,0.1);
+  border-left: 3px solid var(--warning);
+}
+.alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.alert-text { font-size: 12px; line-height: 1.5; }
+.alert-text strong { display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 2px; }
+.alert-item.high .alert-text strong { color: var(--danger); }
+.alert-item.medium .alert-text strong { color: var(--warning); }
+
+.track-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  transition: border-color 0.15s;
+}
+.track-item:hover { border-color: var(--accent); }
+.track-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  flex-shrink: 0;
+}
+.track-info { flex: 1; }
+.track-info .id { font-weight: 600; color: var(--text-primary); }
+.track-info .pos { color: var(--text-secondary); font-size: 10px; }
+.track-speed {
+  font-size: 10px;
+  color: var(--success);
+  text-align: right;
+}
+
+/* ── Bottom Bar ── */
+.bottom-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 20px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  height: 50px;
+}
+.playback-controls { display: flex; gap: 4px; }
+.playback-controls .btn { padding: 4px 10px; font-size: 14px; }
+.timeline-wrap { flex: 1; display: flex; align-items: center; gap: 10px; }
+.timeline {
+  flex: 1; height: 6px;
+  background: var(--bg-card);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+.timeline-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #0090ff);
+  border-radius: 3px;
+  transition: width 0.1s;
+}
+.timeline-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 100px;
+}
+.stats-bar {
+  display: flex;
+  gap: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.stats-bar .stat-val { color: var(--accent); font-weight: 500; }
+
+/* ── Onboarding overlay ── */
+.onboarding {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  background: rgba(7,11,20,0.92);
+  backdrop-filter: blur(6px);
+}
+.onboarding-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.onboarding-card h2 { font-size: 22px; margin-bottom: 8px; }
+.onboarding-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+.onboarding-card .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.hidden { display: none !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <div class="logo">S</div>
+    <div>
+      <h1>SkyWatch</h1>
+      <span>Passive Optical Bird Detection</span>
+    </div>
+  </div>
+  <div class="navbar-status">
+    <span><span class="status-dot green" id="statusDot"></span> <span id="statusText">Ready</span></span>
+    <span>FPS: <span id="fpsCounter" style="color:var(--accent)">--</span></span>
+  </div>
+  <div class="navbar-actions">
+    <button class="btn" id="btnGT" onclick="toggleGroundTruth()">Ground Truth</button>
+    <button class="btn" id="btnVoxels" onclick="toggleVoxels()">Voxels</button>
+    <button class="btn btn-danger" onclick="resetAll()">Reset</button>
+  </div>
+</nav>
+
+<!-- ── Main Grid ── -->
+<div class="main">
+
+  <!-- Left: Cameras -->
+  <div class="panel-left">
+    <div class="panel-title">Camera Feeds</div>
+    <div id="cameraList">
+      <div class="camera-card" id="cam-cam0">
+        <div class="feed"><div class="no-feed">CAM 0<br>No feed</div></div>
+        <div class="cam-info">
+          <span class="cam-name">CAM-0</span>
+          <span class="cam-meta">--</span>
+        </div>
+      </div>
+      <div class="camera-card" id="cam-cam1">
+        <div class="feed"><div class="no-feed">CAM 1<br>No feed</div></div>
+        <div class="cam-info">
+          <span class="cam-name">CAM-1</span>
+          <span class="cam-meta">--</span>
+        </div>
+      </div>
+      <div class="camera-card" id="cam-cam2">
+        <div class="feed"><div class="no-feed">CAM 2<br>No feed</div></div>
+        <div class="cam-info">
+          <span class="cam-name">CAM-2</span>
+          <span class="cam-meta">--</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-title" style="margin-top:16px">Calibration</div>
+    <button class="btn btn-accent" onclick="openCalibration()" style="width:100%;margin-bottom:12px;justify-content:center;">
+      Calibrate Cameras
+    </button>
+
+    <div class="panel-title" style="margin-top:8px">System</div>
+    <div style="font-size:11px;color:var(--text-secondary);line-height:1.8;font-family:'JetBrains Mono',monospace">
+      <div>Engine: <span style="color:var(--success)">Numba JIT</span></div>
+      <div>Grid: <span id="gridInfo" style="color:var(--accent)">200x200x200</span></div>
+      <div>Voxel: <span style="color:var(--accent)">3.0m</span></div>
+      <div id="processingMode">Mode: <span style="color:var(--accent)">Standby</span></div>
+    </div>
+  </div>
+
+  <!-- Center: 3D Viewport -->
+  <div class="viewport" id="viewport3d">
+    <div class="viewport-overlay">
+      <div class="viewport-badge">Detections: <span class="val" id="detCount">0</span></div>
+      <div class="viewport-badge">Altitude: <span class="val" id="avgAlt">--</span></div>
+    </div>
+    <canvas id="threeCanvas"></canvas>
+
+    <!-- Onboarding overlay -->
+    <div class="onboarding" id="onboarding">
+      <div class="onboarding-card">
+        <h2>Welcome to SkyWatch</h2>
+        <p>
+          Passive optical radar for airport bird detection.<br>
+          Replace expensive radar with cameras — even phone cameras.
+        </p>
+        <div class="actions">
+          <button class="btn btn-accent" onclick="loadDemo()">
+            Load Synthetic Demo
+          </button>
+          <button class="btn" onclick="showVideoLoader()">
+            Load Video Files
+          </button>
+        </div>
+        <p style="margin-top:16px;font-size:11px;color:var(--text-dim)">
+          Demo generates synthetic bird flights from 3 virtual cameras
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Detections & Alerts -->
+  <div class="panel-right">
+    <div class="alerts-section">
+      <div class="panel-title">Alerts</div>
+      <div id="alertsList">
+        <div style="color:var(--text-dim);font-size:12px;padding:8px;">No active alerts</div>
+      </div>
+    </div>
+    <div class="detections-section">
+      <div class="panel-title">Active Tracks</div>
+      <div id="tracksList">
+        <div style="color:var(--text-dim);font-size:12px;padding:8px;">No tracks yet — load data to begin</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: Playback -->
+  <div class="bottom-bar">
+    <div class="playback-controls">
+      <button class="btn" onclick="controlAction('reset')" title="Reset">&#9632;</button>
+      <button class="btn" id="btnPlay" onclick="togglePlayPause()" title="Play/Pause">&#9654;</button>
+    </div>
+    <div class="timeline-wrap">
+      <div class="timeline" id="timeline" onclick="seekTimeline(event)">
+        <div class="timeline-fill" id="timelineFill" style="width:0%"></div>
+      </div>
+      <div class="timeline-label" id="frameLabel">Frame 0 / 0</div>
+    </div>
+    <div class="stats-bar">
+      <span>Tracks: <span class="stat-val" id="statTracks">0</span></span>
+      <span>Alerts: <span class="stat-val" id="statAlerts">0</span></span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <button class="btn" style="padding:2px 8px;font-size:10px;" onclick="changeSpeed(-1)">-</button>
+        <span>Speed: <span class="stat-val" id="statSpeed">3.0x</span></span>
+        <button class="btn" style="padding:2px 8px;font-size:10px;" onclick="changeSpeed(1)">+</button>
+      </span>
+      <button class="btn" id="btnRays" onclick="toggleRays()" style="font-size:10px;padding:4px 8px;">Rays: ON</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Calibration Modal ── -->
+<div class="onboarding hidden" id="calibModal" style="z-index:200;">
+  <div class="onboarding-card" style="max-width:700px;text-align:left;max-height:90vh;overflow-y:auto;">
+    <h2 style="text-align:center;margin-bottom:16px;">Camera Calibration</h2>
+
+    <!-- Step 1: Print board -->
+    <div id="calStep1">
+      <div class="panel-title">Step 1 — Print Checkerboard</div>
+      <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;margin-bottom:12px;">
+        Click below to download a checkerboard pattern. Print it on A4 paper at <b>100% scale</b> (no fit-to-page).
+        Measure the actual printed square size with a ruler and enter it below.
+      </p>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+        <button class="btn btn-accent" onclick="downloadCheckerboard()">Download Checkerboard</button>
+        <span style="font-size:12px;color:var(--text-dim);" id="calBoardStatus"></span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+        <label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Square size (mm):</label>
+        <input type="number" value="30" min="10" max="100" id="calSquareSize"
+               style="width:80px;padding:4px 8px;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:13px;">
+      </div>
+      <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;margin-bottom:12px;">
+        <b>Place the board flat on the ground</b> at the center point of your camera setup.
+        This becomes your coordinate origin. The board's long edge points "north" (+Y).
+      </p>
+      <button class="btn" onclick="showCalStep(2)" style="float:right;">Next: Upload Photos &rarr;</button>
+      <div style="clear:both;"></div>
+    </div>
+
+    <!-- Step 2: Upload photos -->
+    <div id="calStep2" class="hidden">
+      <div class="panel-title">Step 2 — Upload Checkerboard Photos</div>
+      <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;margin-bottom:12px;">
+        From each phone's <b>final mounted position</b>, take a photo that includes the full checkerboard.
+        The phone should be pointing roughly toward the sky area you want to monitor.
+      </p>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+        <label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Phone FOV (degrees):</label>
+        <input type="number" value="70" min="40" max="120" id="calFOV"
+               style="width:80px;padding:4px 8px;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:13px;">
+        <span style="font-size:10px;color:var(--text-dim);">iPhone~77, Samsung~79, default~70</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+        <label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Camera height (m):</label>
+        <input type="number" value="1.5" min="0.5" max="20" step="0.1" id="calHeight"
+               style="width:80px;padding:4px 8px;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:13px;">
+      </div>
+
+      <div id="calUploads" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+      <button class="btn btn-accent" onclick="addCameraUpload()">+ Add Camera</button>
+      <button class="btn" onclick="showCalStep(1)" style="margin-left:8px;">&larr; Back</button>
+      <button class="btn btn-accent" onclick="runCalibration()" style="float:right;" id="calRunBtn">Calibrate All</button>
+      <div style="clear:both;"></div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="calStep3" class="hidden">
+      <div class="panel-title">Step 3 — Calibration Results</div>
+      <div id="calResults" style="margin-bottom:16px;"></div>
+      <button class="btn" onclick="showCalStep(2)">&larr; Back</button>
+      <button class="btn btn-accent" onclick="applyCalibration()" style="float:right;">Apply &amp; Close</button>
+      <div style="clear:both;"></div>
+    </div>
+
+    <button class="btn btn-danger" onclick="closeCalibration()" style="margin-top:16px;width:100%;justify-content:center;">Close</button>
+  </div>
+</div>
+
+<!-- ── Three.js + App Logic ── -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Three.js Scene Setup ──
+const canvas = document.getElementById('threeCanvas');
+const viewport = document.getElementById('viewport3d');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x070b14);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x070b14, 0.0008);
+
+const camera = new THREE.PerspectiveCamera(60, 1, 1, 5000);
+camera.position.set(0, -400, 300);
+camera.up.set(0, 0, 1);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 100, 50);
+controls.maxDistance = 2000;
+
+// ── Ground Grid (Runway) ──
+const gridHelper = new THREE.GridHelper(1200, 60, 0x0a2040, 0x0a1a30);
+gridHelper.rotation.x = Math.PI / 2;
+scene.add(gridHelper);
+
+// Runway strip
+const runwayGeo = new THREE.PlaneGeometry(40, 800);
+const runwayMat = new THREE.MeshBasicMaterial({ color: 0x0f1a2a, transparent: true, opacity: 0.6 });
+const runway = new THREE.Mesh(runwayGeo, runwayMat);
+runway.position.set(0, 200, 0.1);
+scene.add(runway);
+
+// Runway markings
+for (let i = -350; i <= 350; i += 50) {
+  const mGeo = new THREE.PlaneGeometry(2, 20);
+  const mMat = new THREE.MeshBasicMaterial({ color: 0x1a3050 });
+  const m = new THREE.Mesh(mGeo, mMat);
+  m.position.set(0, 200 + i, 0.2);
+  scene.add(m);
+}
+
+// ── Ambient Light ──
+scene.add(new THREE.AmbientLight(0x334466, 0.5));
+
+// ── Camera Colors (one per camera for ray visualization) ──
+const CAM_COLORS = [0xff6b6b, 0x51cf66, 0x339af0]; // red, green, blue
+const CAM_COLOR_HEX = ['#ff6b6b', '#51cf66', '#339af0'];
+let storedCamPositions = []; // world positions for ray drawing
+
+// ── Camera Markers ──
+const cameraMarkers = {};
+function addCameraMarker(id, pos, yaw) {
+  if (cameraMarkers[id]) { scene.remove(cameraMarkers[id]); }
+  const idx = Object.keys(cameraMarkers).length % CAM_COLORS.length;
+  const camColor = CAM_COLORS[idx];
+  const group = new THREE.Group();
+  const coneGeo = new THREE.ConeGeometry(6, 15, 4);
+  const coneMat = new THREE.MeshBasicMaterial({ color: camColor, wireframe: true, transparent: true, opacity: 0.7 });
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.rotation.x = Math.PI / 2;
+  cone.position.z = 7.5;
+  group.add(cone);
+  const baseGeo = new THREE.SphereGeometry(4, 8, 8);
+  const baseMat = new THREE.MeshBasicMaterial({ color: camColor });
+  group.add(new THREE.Mesh(baseGeo, baseMat));
+  group.position.set(pos[0], pos[1], pos[2]);
+  group.rotation.z = yaw * Math.PI / 180;
+  scene.add(group);
+  cameraMarkers[id] = group;
+}
+
+// ── Bird Particles ──
+const MAX_BIRDS = 100;
+const birdPositions = new Float32Array(MAX_BIRDS * 3);
+const birdColors = new Float32Array(MAX_BIRDS * 3);
+const birdGeo = new THREE.BufferGeometry();
+birdGeo.setAttribute('position', new THREE.BufferAttribute(birdPositions, 3));
+birdGeo.setAttribute('color', new THREE.BufferAttribute(birdColors, 3));
+birdGeo.setDrawRange(0, 0);
+
+const birdMat = new THREE.PointsMaterial({
+  size: 12,
+  vertexColors: true,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.95,
+});
+const birdPoints = new THREE.Points(birdGeo, birdMat);
+scene.add(birdPoints);
+
+// ── Ground Truth markers ──
+const MAX_GT = 50;
+const gtPositions = new Float32Array(MAX_GT * 3);
+const gtGeo = new THREE.BufferGeometry();
+gtGeo.setAttribute('position', new THREE.BufferAttribute(gtPositions, 3));
+gtGeo.setDrawRange(0, 0);
+const gtMat = new THREE.PointsMaterial({ size: 10, color: 0x00e88a, transparent: true, opacity: 0.7 });
+const gtPoints = new THREE.Points(gtGeo, gtMat);
+scene.add(gtPoints);
+let showGT = true;
+let lastGTData = null;   // FIXED: store last GT data so toggle works anytime
+
+// ── Trajectory Lines ──
+const trajectoryLines = {};
+function updateTrajectory(trackId, positions) {
+  if (trajectoryLines[trackId]) {
+    scene.remove(trajectoryLines[trackId]);
+    trajectoryLines[trackId].geometry.dispose();
+  }
+  if (positions.length < 2) return;
+  const pts = positions.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0x00c8ff, transparent: true, opacity: 0.4 });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  trajectoryLines[trackId] = line;
+}
+
+function clearTrajectories() {
+  Object.values(trajectoryLines).forEach(l => { scene.remove(l); l.geometry.dispose(); });
+  for (const k of Object.keys(trajectoryLines)) delete trajectoryLines[k];
+}
+
+// ── Ray Lines (camera → bird triangulation) ──
+let rayLinesGroup = new THREE.Group();
+scene.add(rayLinesGroup);
+let showRays = true;
+let selectedBirdId = null;
+let currentTracks = [];  // store for re-rendering rays on selection change
+
+function updateRayLines(tracks, camPositions) {
+  // Remove old rays
+  while (rayLinesGroup.children.length > 0) {
+    const child = rayLinesGroup.children[0];
+    rayLinesGroup.remove(child);
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+  if (!showRays || !camPositions || camPositions.length === 0) return;
+
+  for (const track of tracks) {
+    const birdPos = new THREE.Vector3(track.position[0], track.position[1], track.position[2]);
+    const isSelected = track.id === selectedBirdId;
+
+    for (let ci = 0; ci < camPositions.length; ci++) {
+      const cp = camPositions[ci];
+      const camPos = new THREE.Vector3(cp[0], cp[1], cp[2]);
+      const pts = [camPos, birdPos];
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const color = CAM_COLORS[ci % CAM_COLORS.length];
+      const mat = new THREE.LineBasicMaterial({
+        color: isSelected ? 0xffffff : color,
+        transparent: true,
+        opacity: isSelected ? 0.9 : 0.12,
+      });
+      const line = new THREE.Line(geo, mat);
+      rayLinesGroup.add(line);
+    }
+
+    // Draw a small ring at the intersection point for selected bird
+    if (isSelected) {
+      const ringGeo = new THREE.RingGeometry(4, 6, 16);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(birdPos);
+      ring.lookAt(camera.position);
+      rayLinesGroup.add(ring);
+    }
+  }
+}
+
+function clearRays() {
+  while (rayLinesGroup.children.length > 0) {
+    const child = rayLinesGroup.children[0];
+    rayLinesGroup.remove(child);
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+}
+
+// ── Voxel Points ──
+let voxelPoints = null;
+let showVoxelLayer = false;
+let lastVoxelData = null;  // FIXED: store last voxel data so toggle works anytime
+
+function renderVoxels(voxelData) {
+  if (voxelPoints) { scene.remove(voxelPoints); voxelPoints.geometry.dispose(); voxelPoints = null; }
+  if (!voxelData || voxelData.length === 0) return;
+
+  let data = voxelData;
+  if (data.length > 5000) {
+    const step = Math.ceil(data.length / 5000);
+    data = data.filter((_, i) => i % step === 0);
+  }
+
+  const positions = new Float32Array(data.length * 3);
+  const colors = new Float32Array(data.length * 3);
+  for (let i = 0; i < data.length; i++) {
+    positions[i*3] = data[i][0];
+    positions[i*3+1] = data[i][1];
+    positions[i*3+2] = data[i][2];
+    const intensity = data[i][3] || 0.5;
+    colors[i*3] = intensity * 0.2;
+    colors[i*3+1] = intensity * 0.6;
+    colors[i*3+2] = intensity;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: 4, vertexColors: true, transparent: true, opacity: 0.3, sizeAttenuation: true });
+  voxelPoints = new THREE.Points(geo, mat);
+  scene.add(voxelPoints);
+}
+
+function renderGT(gtData) {
+  if (!gtData || gtData.length === 0) { gtGeo.setDrawRange(0, 0); return; }
+  const gtCount = Math.min(gtData.length, MAX_GT);
+  for (let i = 0; i < gtCount; i++) {
+    const p = gtData[i].position;
+    gtPositions[i*3] = p[0];
+    gtPositions[i*3+1] = p[1];
+    gtPositions[i*3+2] = p[2];
+  }
+  gtGeo.setDrawRange(0, gtCount);
+  gtGeo.attributes.position.needsUpdate = true;
+}
+
+// ── Alert Range Ring ──
+const ringGeo = new THREE.RingGeometry(295, 305, 64);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4757, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+const alertRing = new THREE.Mesh(ringGeo, ringMat);
+alertRing.position.set(0, 200, 1);
+scene.add(alertRing);
+
+// ── Resize ──
+function onResize() {
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+setTimeout(onResize, 100);
+
+// ── Animation Loop ──
+let lastFpsTime = performance.now();
+let frameCount = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime > 1000) {
+    document.getElementById('fpsCounter').textContent = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+}
+animate();
+
+// ── WebSocket ──
+let ws = null;
+let isPlaying = false;
+let processingActive = false;  // FIXED: tracks server-side processing state
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => { console.log('WebSocket connected'); };
+  ws.onclose = () => { setTimeout(connectWS, 2000); };
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'frame_update') handleFrameUpdate(msg);
+    else if (msg.type === 'processing_complete') handleComplete();
+  };
+}
+connectWS();
+
+function handleFrameUpdate(msg) {
+  const { frame, total_frames, tracks, alerts, stats, thumbnails, voxels, ground_truth, detections, camera_positions } = msg;
+
+  // Store camera positions for ray drawing
+  if (camera_positions) storedCamPositions = camera_positions;
+  currentTracks = tracks;
+
+  // Update timeline
+  const pct = total_frames > 0 ? (frame / total_frames * 100) : 0;
+  document.getElementById('timelineFill').style.width = pct + '%';
+  document.getElementById('frameLabel').textContent = `Frame ${frame} / ${total_frames}`;
+
+  // Update stats
+  document.getElementById('statTracks').textContent = stats.active_tracks;
+  document.getElementById('statAlerts').textContent = alerts.length;
+  document.getElementById('detCount').textContent = detections ? detections.length : 0;
+  document.getElementById('avgAlt').textContent = stats.avg_altitude > 0
+    ? stats.avg_altitude.toFixed(0) + 'm' : '--';
+
+  // Update status
+  const dot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  if (alerts.length > 0) {
+    dot.className = 'status-dot red';
+    statusText.textContent = 'ALERT';
+    statusText.style.color = 'var(--danger)';
+  } else if (tracks.length > 0) {
+    dot.className = 'status-dot yellow';
+    statusText.textContent = 'Tracking';
+    statusText.style.color = 'var(--warning)';
+  } else {
+    dot.className = 'status-dot green';
+    statusText.textContent = 'Scanning';
+    statusText.style.color = '';
+  }
+
+  // Update camera thumbnails with color-coded borders
+  const camIds = Object.keys(thumbnails || {});
+  camIds.forEach((camId, idx) => {
+    const card = document.getElementById('cam-' + camId);
+    if (card) {
+      card.style.borderColor = CAM_COLOR_HEX[idx % CAM_COLOR_HEX.length];
+      const feed = card.querySelector('.feed');
+      let img = feed.querySelector('img');
+      if (!img) {
+        feed.innerHTML = '';
+        img = document.createElement('img');
+        feed.appendChild(img);
+      }
+      img.src = 'data:image/jpeg;base64,' + thumbnails[camId];
+    }
+  });
+
+  // Update 3D bird positions
+  let birdCount = Math.min(tracks.length, MAX_BIRDS);
+  for (let i = 0; i < birdCount; i++) {
+    const t = tracks[i];
+    const p = t.position;
+    birdPositions[i*3] = p[0];
+    birdPositions[i*3+1] = p[1];
+    birdPositions[i*3+2] = p[2];
+    const isAlert = alerts.some(a => a.track_id === t.id);
+    if (isAlert) {
+      birdColors[i*3] = 1; birdColors[i*3+1] = 0.28; birdColors[i*3+2] = 0.34;
+    } else {
+      birdColors[i*3] = 0; birdColors[i*3+1] = 0.78; birdColors[i*3+2] = 1;
+    }
+    if (t.trajectory && t.trajectory.length > 1) {
+      updateTrajectory(t.id, t.trajectory);
+    }
+  }
+  birdGeo.setDrawRange(0, birdCount);
+  birdGeo.attributes.position.needsUpdate = true;
+  birdGeo.attributes.color.needsUpdate = true;
+
+  // Update ray lines from cameras to birds
+  updateRayLines(tracks, storedCamPositions);
+
+  // FIXED: Always store GT data, render based on toggle
+  if (ground_truth) {
+    lastGTData = ground_truth;
+  }
+  if (showGT && lastGTData) {
+    renderGT(lastGTData);
+  }
+
+  // FIXED: Always store voxel data, render based on toggle
+  if (voxels && voxels.length > 0) {
+    lastVoxelData = voxels;
+  }
+  if (showVoxelLayer) {
+    renderVoxels(lastVoxelData);
+  } else if (voxelPoints) {
+    scene.remove(voxelPoints);
+    voxelPoints.geometry.dispose();
+    voxelPoints = null;
+  }
+
+  // Update alerts panel
+  const alertsList = document.getElementById('alertsList');
+  if (alerts.length > 0) {
+    alertsList.innerHTML = alerts.map(a => `
+      <div class="alert-item ${a.severity.toLowerCase()}">
+        <span class="alert-icon">${a.severity === 'HIGH' ? '&#9888;' : '&#9679;'}</span>
+        <div class="alert-text">
+          <strong>${a.severity} Priority</strong>
+          ${a.message}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    alertsList.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px;">Airspace clear</div>';
+  }
+
+  // Update tracks panel (click to select/highlight a bird's rays)
+  const tracksList = document.getElementById('tracksList');
+  if (tracks.length > 0) {
+    tracksList.innerHTML = tracks.map(t => {
+      const sel = t.id === selectedBirdId;
+      return `
+      <div class="track-item${sel ? ' selected' : ''}" onclick="selectBird(${t.id})"
+           style="${sel ? 'border-color:var(--accent);background:var(--accent-dim);' : ''}cursor:pointer;">
+        <div class="track-dot" style="${sel ? 'background:#fff;box-shadow:0 0 12px #fff;' : ''}"></div>
+        <div class="track-info">
+          <div class="id">Bird #${t.id}</div>
+          <div class="pos">Alt: ${t.altitude.toFixed(0)}m | Age: ${t.age}</div>
+        </div>
+        <div class="track-speed">${t.speed.toFixed(1)} m/s</div>
+      </div>`;
+    }).join('');
+  } else {
+    tracksList.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px;">No active tracks</div>';
+  }
+}
+
+function handleComplete() {
+  isPlaying = false;
+  processingActive = false;
+  document.getElementById('btnPlay').innerHTML = '&#9654;';
+  document.getElementById('statusDot').className = 'status-dot green';
+  document.getElementById('statusText').textContent = 'Complete';
+  document.getElementById('statusText').style.color = 'var(--success)';
+  document.getElementById('processingMode').innerHTML = 'Mode: <span style="color:var(--success)">Complete</span>';
+}
+
+// ── Global functions ──
+window.loadDemo = async function() {
+  // FIXED: Stop any existing processing first
+  if (processingActive) {
+    await fetch('/api/control', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'stop' }),
+    });
+    // Wait for processing to stop
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  document.getElementById('onboarding').classList.add('hidden');
+  document.getElementById('statusText').textContent = 'Loading demo...';
+  document.getElementById('processingMode').innerHTML = 'Mode: <span style="color:var(--warning)">Loading...</span>';
+
+  // FIXED: Clear all existing 3D state before re-loading
+  clearTrajectories();
+  birdGeo.setDrawRange(0, 0);
+  gtGeo.setDrawRange(0, 0);
+  lastGTData = null;
+  lastVoxelData = null;
+  if (voxelPoints) { scene.remove(voxelPoints); voxelPoints.geometry.dispose(); voxelPoints = null; }
+
+  const resp = await fetch('/api/load-demo', { method: 'POST' });
+  const data = await resp.json();
+
+  const camResp = await fetch('/api/cameras');
+  const cameras = await camResp.json();
+  cameras.forEach(c => addCameraMarker(c.id, c.position, c.yaw));
+
+  document.getElementById('processingMode').innerHTML = 'Mode: <span style="color:var(--accent)">Demo</span>';
+  document.getElementById('statusText').textContent = 'Ready';
+  onResize();
+
+  // Auto-start processing
+  startProcessing();
+};
+
+window.showVideoLoader = function() {
+  alert('To load phone recordings:\n1. Record videos on all 3 phones simultaneously\n2. Transfer to your computer\n3. Use the API: POST /api/load-videos\n\nFor now, try the synthetic demo!');
+};
+
+window.startProcessing = function() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ action: 'start_processing' }));
+    isPlaying = true;
+    processingActive = true;
+    document.getElementById('btnPlay').innerHTML = '&#10074;&#10074;';
+    document.getElementById('statusDot').className = 'status-dot green';
+    document.getElementById('statusText').textContent = 'Processing';
+    document.getElementById('statusText').style.color = '';
+  }
+};
+
+// FIXED: Proper play/pause toggle logic
+window.togglePlayPause = async function() {
+  if (processingActive) {
+    // Processing is running on server — toggle pause/resume
+    const newState = isPlaying ? 'pause' : 'play';
+    await fetch('/api/control', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: newState }),
+    });
+    isPlaying = !isPlaying;
+    document.getElementById('btnPlay').innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  } else {
+    // No processing active — start fresh
+    startProcessing();
+  }
+};
+
+window.controlAction = async function(action, value) {
+  await fetch('/api/control', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action, value }),
+  });
+  if (action === 'reset') {
+    isPlaying = false;
+    processingActive = false;
+    document.getElementById('btnPlay').innerHTML = '&#9654;';
+    document.getElementById('timelineFill').style.width = '0%';
+    document.getElementById('frameLabel').textContent = 'Frame 0 / 0';
+    clearTrajectories();
+    clearRays();
+    selectedBirdId = null;
+    currentTracks = [];
+    birdGeo.setDrawRange(0, 0);
+    gtGeo.setDrawRange(0, 0);
+    lastGTData = null;
+    lastVoxelData = null;
+    if (voxelPoints) { scene.remove(voxelPoints); voxelPoints.geometry.dispose(); voxelPoints = null; }
+  }
+};
+
+window.seekTimeline = async function(event) {
+  const timeline = document.getElementById('timeline');
+  const rect = timeline.getBoundingClientRect();
+  const ratio = (event.clientX - rect.left) / rect.width;
+  const totalFrames = parseInt(document.getElementById('frameLabel').textContent.split('/')[1]) || 0;
+  const frame = Math.floor(ratio * totalFrames);
+  await fetch('/api/control', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: 'seek', frame }),
+  });
+};
+
+window.resetAll = function() { controlAction('reset'); };
+
+// FIXED: Toggle with visual button state + immediate re-render from stored data
+window.toggleGroundTruth = function() {
+  showGT = !showGT;
+  const btn = document.getElementById('btnGT');
+  if (showGT) {
+    btn.classList.add('btn-active');
+    gtPoints.visible = true;
+    if (lastGTData) renderGT(lastGTData);
+  } else {
+    btn.classList.remove('btn-active');
+    gtPoints.visible = false;
+  }
+};
+
+// FIXED: Toggle with visual button state + immediate re-render from stored data
+window.toggleVoxels = function() {
+  showVoxelLayer = !showVoxelLayer;
+  const btn = document.getElementById('btnVoxels');
+  if (showVoxelLayer) {
+    btn.classList.add('btn-active');
+    if (lastVoxelData) renderVoxels(lastVoxelData);
+  } else {
+    btn.classList.remove('btn-active');
+    if (voxelPoints) { scene.remove(voxelPoints); voxelPoints.geometry.dispose(); voxelPoints = null; }
+  }
+};
+
+// ── Select a bird to highlight its rays ──
+window.selectBird = function(trackId) {
+  selectedBirdId = (selectedBirdId === trackId) ? null : trackId;
+  // Re-render rays immediately with new selection
+  updateRayLines(currentTracks, storedCamPositions);
+};
+
+// ── Speed controls ──
+let currentSpeed = 3.0;
+window.changeSpeed = async function(delta) {
+  const speeds = [0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0];
+  let idx = speeds.indexOf(currentSpeed);
+  if (idx === -1) idx = 3;
+  idx = Math.max(0, Math.min(speeds.length - 1, idx + delta));
+  currentSpeed = speeds[idx];
+  document.getElementById('statSpeed').textContent = currentSpeed + 'x';
+  await fetch('/api/control', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: 'speed', value: currentSpeed }),
+  });
+};
+
+// ── Toggle ray visualization ──
+window.toggleRays = function() {
+  showRays = !showRays;
+  const btn = document.getElementById('btnRays');
+  btn.textContent = showRays ? 'Rays: ON' : 'Rays: OFF';
+  if (showRays) {
+    btn.classList.add('btn-active');
+    updateRayLines(currentTracks, storedCamPositions);
+  } else {
+    btn.classList.remove('btn-active');
+    clearRays();
+  }
+};
+
+// ── Calibration Wizard ──
+let calCameraCount = 0;
+let calResults = {};
+
+window.openCalibration = function() {
+  document.getElementById('calibModal').classList.remove('hidden');
+  showCalStep(1);
+  // Pre-populate 3 camera upload slots
+  const uploads = document.getElementById('calUploads');
+  if (uploads.children.length === 0) {
+    addCameraUpload();
+    addCameraUpload();
+    addCameraUpload();
+  }
+};
+
+window.closeCalibration = function() {
+  document.getElementById('calibModal').classList.add('hidden');
+};
+
+window.showCalStep = function(step) {
+  document.getElementById('calStep1').classList.toggle('hidden', step !== 1);
+  document.getElementById('calStep2').classList.toggle('hidden', step !== 2);
+  document.getElementById('calStep3').classList.toggle('hidden', step !== 3);
+};
+
+window.downloadCheckerboard = async function() {
+  const status = document.getElementById('calBoardStatus');
+  status.textContent = 'Generating...';
+  const resp = await fetch('/api/checkerboard');
+  const data = await resp.json();
+  // Download as PNG
+  const link = document.createElement('a');
+  link.href = 'data:image/png;base64,' + data.image;
+  link.download = 'skywatch_checkerboard.png';
+  link.click();
+  status.textContent = 'Downloaded! Print at 100% scale.';
+  status.style.color = 'var(--success)';
+};
+
+window.addCameraUpload = function() {
+  calCameraCount++;
+  const id = 'cam' + (calCameraCount - 1);
+  const uploads = document.getElementById('calUploads');
+  const colors = ['#ff6b6b', '#51cf66', '#339af0', '#cc5de8', '#ffa726'];
+  const color = colors[(calCameraCount - 1) % colors.length];
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;border-left:3px solid ' + color;
+  div.innerHTML = `
+    <span style="font-family:'JetBrains Mono';font-size:12px;font-weight:600;color:${color};min-width:50px;">CAM-${calCameraCount - 1}</span>
+    <input type="file" accept="image/*" data-camid="${id}" style="flex:1;font-size:11px;color:var(--text-secondary);">
+    <span class="cal-status" data-camid="${id}" style="font-size:10px;color:var(--text-dim);min-width:60px;text-align:right;">No file</span>
+  `;
+  uploads.appendChild(div);
+};
+
+window.runCalibration = async function() {
+  const btn = document.getElementById('calRunBtn');
+  btn.textContent = 'Calibrating...';
+  btn.disabled = true;
+
+  const squareSize = parseFloat(document.getElementById('calSquareSize').value) || 30;
+  const fov = parseFloat(document.getElementById('calFOV').value) || 70;
+  const height = parseFloat(document.getElementById('calHeight').value) || 1.5;
+
+  const fileInputs = document.querySelectorAll('#calUploads input[type="file"]');
+  calResults = {};
+  let allDone = true;
+
+  for (const input of fileInputs) {
+    const camId = input.dataset.camid;
+    const statusEl = document.querySelector(`.cal-status[data-camid="${camId}"]`);
+
+    if (!input.files || input.files.length === 0) {
+      statusEl.textContent = 'Skipped';
+      statusEl.style.color = 'var(--text-dim)';
+      continue;
+    }
+
+    statusEl.textContent = 'Processing...';
+    statusEl.style.color = 'var(--warning)';
+
+    // Read file as base64
+    const file = input.files[0];
+    const b64 = await fileToBase64(file);
+
+    try {
+      const resp = await fetch('/api/calibrate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          camera_id: camId,
+          image_b64: b64,
+          fov: fov,
+          square_size_mm: squareSize,
+          camera_height_m: height,
+        }),
+      });
+
+      if (resp.ok) {
+        const result = await resp.json();
+        calResults[camId] = result;
+        statusEl.textContent = 'OK';
+        statusEl.style.color = 'var(--success)';
+      } else {
+        const err = await resp.json();
+        statusEl.textContent = 'Failed';
+        statusEl.style.color = 'var(--danger)';
+        calResults[camId] = { error: err.error || 'Failed' };
+        allDone = false;
+      }
+    } catch (e) {
+      statusEl.textContent = 'Error';
+      statusEl.style.color = 'var(--danger)';
+      allDone = false;
+    }
+  }
+
+  btn.textContent = 'Calibrate All';
+  btn.disabled = false;
+
+  // Show results
+  showCalibrationResults();
+  showCalStep(3);
+};
+
+function showCalibrationResults() {
+  const container = document.getElementById('calResults');
+  let html = '';
+  for (const [camId, result] of Object.entries(calResults)) {
+    if (result.error) {
+      html += `<div style="padding:8px;margin-bottom:8px;background:var(--danger-bg);border-radius:6px;font-size:12px;">
+        <b>${camId}</b>: ${result.error}
+      </div>`;
+    } else {
+      const p = result.position;
+      html += `<div style="padding:10px;margin-bottom:8px;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <b style="font-family:'JetBrains Mono';font-size:13px;">${camId.toUpperCase()}</b>
+          <span style="font-size:10px;color:var(--success);">Calibrated</span>
+        </div>
+        <div style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.8;">
+          Position: (${p[0].toFixed(2)}, ${p[1].toFixed(2)}, ${p[2].toFixed(2)}) m<br>
+          Yaw: ${result.yaw.toFixed(1)}° | Pitch: ${result.pitch.toFixed(1)}° | FOV: ${result.fov.toFixed(0)}°<br>
+          Reprojection error: ${result.reprojection_error.toFixed(2)} px
+        </div>
+        ${result.preview_image ? `<img src="data:image/jpeg;base64,${result.preview_image}"
+          style="width:100%;margin-top:8px;border-radius:4px;border:1px solid var(--border);">` : ''}
+      </div>`;
+    }
+  }
+  if (!html) html = '<p style="color:var(--text-dim);font-size:12px;">No cameras calibrated.</p>';
+  container.innerHTML = html;
+}
+
+window.applyCalibration = async function() {
+  const cameras = [];
+  for (const [camId, result] of Object.entries(calResults)) {
+    if (!result.error) {
+      cameras.push({
+        camera_id: camId,
+        position: result.position,
+        yaw: result.yaw,
+        pitch: result.pitch,
+        roll: result.roll || 0,
+        fov: result.fov,
+      });
+    }
+  }
+
+  if (cameras.length === 0) {
+    alert('No successfully calibrated cameras to apply.');
+    return;
+  }
+
+  await fetch('/api/apply-calibration', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ cameras }),
+  });
+
+  // Add camera markers to 3D view
+  const camResp = await fetch('/api/cameras');
+  const camData = await camResp.json();
+  camData.forEach(c => addCameraMarker(c.id, c.position, c.yaw));
+
+  closeCalibration();
+  document.getElementById('processingMode').innerHTML = 'Mode: <span style="color:var(--success)">Calibrated</span>';
+};
+
+function fileToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result.split(',')[1]; // strip data:...;base64,
+      resolve(b64);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Set initial button states and speed
+document.getElementById('btnGT').classList.add('btn-active');
+document.getElementById('btnRays').classList.add('btn-active');
+// Set default speed to 3x on startup
+fetch('/api/control', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({ action: 'speed', value: 3.0 }),
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1 @@
+"""SkyWatch web dashboard."""
