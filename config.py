@@ -47,6 +47,22 @@ class DetectionConfig:
 
 
 @dataclass
+class PredictionConfig:
+    """Predictive flight path forecasting settings."""
+    forecast_horizon: float = 30.0
+    forecast_step: float = 0.5
+    process_noise_accel: float = 3.0
+    measurement_noise_pos: float = 1.5
+    adaptive_noise_factor: float = 3.0
+    risk_threshold_low: float = 0.2
+    risk_threshold_high: float = 0.6
+    alert_cooldown: float = 5.0
+    runway_half_width: float = 300.0
+    runway_half_length: float = 400.0
+    enabled: bool = True
+
+
+@dataclass
 class AppConfig:
     """Full application configuration."""
     cameras: List[CameraConfig] = field(default_factory=lambda: [
@@ -56,6 +72,7 @@ class AppConfig:
     ])
     voxel: VoxelConfig = field(default_factory=VoxelConfig)
     detection: DetectionConfig = field(default_factory=DetectionConfig)
+    prediction: PredictionConfig = field(default_factory=PredictionConfig)
     frame_rate: int = 10
     dashboard_port: int = 8050
     dashboard_host: str = "0.0.0.0"

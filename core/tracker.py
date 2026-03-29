@@ -15,6 +15,11 @@ class Track:
     active: bool = True
     missed_frames: int = 0
     label: str = "bird"
+    kalman_state: Optional[object] = None
+    forecast: Optional[List[List[float]]] = None
+    risk_score: float = 0.0
+    risk_level: str = "LOW"
+    time_to_incursion: Optional[float] = None
 
     @property
     def last_position(self) -> np.ndarray:
@@ -55,6 +60,10 @@ class Track:
             "label": self.label,
             "active": self.active,
             "age": len(self.positions),
+            "forecast": self.forecast or [],
+            "risk_score": round(self.risk_score, 3),
+            "risk_level": self.risk_level,
+            "time_to_incursion": round(self.time_to_incursion, 1) if self.time_to_incursion is not None else None,
         }
 
 
