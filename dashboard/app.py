@@ -21,6 +21,8 @@ from core.voxel_engine import VoxelEngine
 from core.motion_detector import MotionDetector
 from core.camera import Camera
 from core.tracker import Tracker
+from core.predictor import FlightPredictor
+from core.danger_zone import DangerZone
 from capture.video_loader import VideoLoader
 
 app = FastAPI(title="SkyWatch", version="1.0.0")
@@ -43,11 +45,13 @@ state = {
     "paused": False,
     "speed": 1.0,
     "demo_metadata": None,
+    "predictor": None,
+    "danger_zone": None,
 }
 
 
 def init_engine():
-    """Initialize the voxel engine from config."""
+    """Initialize the voxel engine and predictor from config."""
     cfg = state["config"]
     state["engine"] = VoxelEngine(
         grid_size=cfg.voxel.grid_size,
@@ -64,6 +68,16 @@ def init_engine():
             threshold=cfg.detection.motion_threshold,
             min_pixels=cfg.detection.min_motion_pixels,
         )
+
+    danger_zone = DangerZone(
+        runway_center=(0, 200, 0),
+        runway_half_width=cfg.prediction.runway_half_width,
+        runway_half_length=cfg.prediction.runway_half_length,
+        altitude_min=cfg.detection.alert_altitude_min,
+        altitude_max=cfg.detection.alert_altitude_max,
+    )
+    state["danger_zone"] = danger_zone
+    state["predictor"] = FlightPredictor(cfg.prediction, danger_zone)
 
 
 @app.on_event("startup")
@@ -190,6 +204,8 @@ async def apply_calibration(data: dict):
 
     init_engine()
     state["tracker"].reset()
+    if state["predictor"]:
+        state["predictor"].reset()
     for det in state["detectors"].values():
         det.reset()
 
@@ -233,6 +249,8 @@ async def load_demo():
     state["processing"] = False
     state["paused"] = False
     state["tracker"].reset()
+    if state["predictor"]:
+        state["predictor"].reset()
     # Reset all motion detectors so frame 0 is treated fresh
     for det in state["detectors"].values():
         det.reset()
@@ -256,8 +274,27 @@ async def load_videos(data: dict):
     state["total_frames"] = loader.total_frames
     state["current_frame"] = 0
     state["tracker"].reset()
+    if state["predictor"]:
+        state["predictor"].reset()
 
     return {"status": "ok", "total_frames": loader.total_frames}
+
+
+@app.get("/api/risk-summary")
+async def risk_summary():
+    """Aggregate risk state across all active tracks."""
+    tracker = state["tracker"]
+    active = tracker._active_tracks()
+    track_risks = [
+        {"track_id": t.track_id, "risk_score": t.risk_score, "risk_level": t.risk_level}
+        for t in active
+    ]
+    dz = state.get("danger_zone")
+    return {
+        "aggregate_risk": max((t.risk_score for t in active), default=0.0),
+        "track_risks": track_risks,
+        "danger_zone": dz.get_bounds() if dz else None,
+    }
 
 
 @app.post("/api/control")
@@ -277,6 +314,8 @@ async def control(data: dict):
         state["paused"] = False
         state["current_frame"] = 0
         state["tracker"].reset()
+        if state["predictor"]:
+            state["predictor"].reset()
         for det in state["detectors"].values():
             det.reset()
         if state["engine"]:
@@ -387,6 +426,27 @@ async def process_frames(ws: WebSocket):
             active_tracks = tracker.update(detections)
             alerts = tracker.get_alerts()
 
+            # Run predictive flight path forecasting
+            predictive_alerts = []
+            if state["config"].prediction.enabled and state["predictor"]:
+                state["predictor"].update(active_tracks)
+                pred_cfg = state["config"].prediction
+                for track in active_tracks:
+                    if track.risk_score > pred_cfg.risk_threshold_high:
+                        if state["predictor"].should_alert(track.track_id):
+                            tti = track.time_to_incursion
+                            tti_str = f"{tti:.0f}s" if tti is not None else "N/A"
+                            predictive_alerts.append({
+                                "track_id": track.track_id,
+                                "severity": "PREDICTIVE",
+                                "message": f"Bird #{track.track_id} predicted incursion "
+                                           f"in {tti_str} (risk: {track.risk_score:.0%})",
+                                "position": track.last_position.tolist(),
+                                "speed": track.speed,
+                                "risk_score": track.risk_score,
+                                "time_to_incursion": tti,
+                            })
+
             # Get voxel visualization data (occupied voxels)
             occupied = engine.get_occupied_voxels(percentile=97.0)
 
@@ -405,12 +465,17 @@ async def process_frames(ws: WebSocket):
                     gt_birds = gt_data[frame_idx].get("birds", [])
 
             # Build update message
+            agg_risk = max((t.risk_score for t in active_tracks), default=0.0)
+            dz_bounds = state["danger_zone"].get_bounds() if state["danger_zone"] else None
             update = {
                 "type": "frame_update",
                 "frame": frame_idx,
                 "total_frames": state["total_frames"],
                 "tracks": [t.to_dict() for t in active_tracks],
                 "alerts": alerts,
+                "predictive_alerts": predictive_alerts,
+                "aggregate_risk": agg_risk,
+                "danger_zone_bounds": dz_bounds,
                 "stats": tracker.get_stats(),
                 "thumbnails": thumbnails,
                 "voxels": occupied.tolist() if len(occupied) > 0 else [],
